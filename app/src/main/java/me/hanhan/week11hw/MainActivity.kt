@@ -29,7 +29,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.lang.RuntimeException
 import java.text.SimpleDateFormat
 import java.util.*
@@ -67,14 +66,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED ||
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_DENIED ||
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_DENIED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(android.Manifest.permission.CAMERA,
-                        android.Manifest.permission.RECORD_AUDIO,
-                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                arrayOf(Manifest.permission.CAMERA,
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE),
                         REQUEST_PERMISSION
             )
         }
@@ -244,7 +243,7 @@ class MainActivity : AppCompatActivity() {
         return when (type) {
             MEDIA_TYPE_IMAGE -> File(mediaStorageDir!!.path + File.separator + fileName + ".jpg")
             MEDIA_TYPE_VIDEO -> File(mediaStorageDir!!.path + File.separator + fileName + ".mp4")
-            else -> throw RuntimeException("Invalid mediaFile type: $type")
+            else -> throw RuntimeException("Invalid File Type: $type")
         }
     }
 

@@ -1,5 +1,6 @@
 package me.hanhan.week11hw
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
@@ -86,7 +87,6 @@ class MainActivity : AppCompatActivity() {
         lastImageView = findViewById(R.id.last_img_view)
 
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(
                 surface: SurfaceTexture,
@@ -94,35 +94,23 @@ class MainActivity : AppCompatActivity() {
                 height: Int
             ) {
                 textureSurface = Surface(textureView.surfaceTexture)
-                startCamera()
+                openCamera()
             }
 
-            override fun onSurfaceTextureSizeChanged(
-                surface: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-            }
-
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                return true
-            }
-
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-            }
+            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
+            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
         }
 
         btnReverse.setOnClickListener {
-            cameraCaptureSession?.close()
-            camera.close()
-            imageReader.close()
-
+            closeCamera()
             cameraId = 1 - cameraId
-            startCamera()
+            openCamera()
         }
     }
 
-    private fun startCamera() {
+    @SuppressLint("MissingPermission")
+    private fun openCamera() {
         val camStateCallback = object : CameraDevice.StateCallback() {
             @RequiresApi(Build.VERSION_CODES.O)
             @SuppressLint("ClickableViewAccessibility")
@@ -132,7 +120,7 @@ class MainActivity : AppCompatActivity() {
                 val cameraCharacteristics = cameraManager.getCameraCharacteristics(camera.id)
                 val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                 val sizes = streamConfigurationMap!!.getOutputSizes(ImageFormat.JPEG)
-                Log.d("startCamera()", "${sizes.size}, [0]: ${sizes[0].width}, ${sizes[0].height}")
+
                 imageReader = ImageReader.newInstance(sizes[0].width, sizes[0].height, ImageFormat.JPEG, 2)
                 imageReader.setOnImageAvailableListener({ reader ->
                     val image = reader!!.acquireLatestImage()
@@ -156,7 +144,7 @@ class MainActivity : AppCompatActivity() {
 
                     outputFile = createOutputFile(MEDIA_TYPE_IMAGE)
                     val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
-                    "Last Shoot:\nImage, $photoW × $photoH\n${outputFile!!.name}\n${currentTime}\n".also { fileInfo.text = it }
+                    "Last Shoot:\nImage, $photoW × $photoH\n${outputFile!!.name}\n${currentTime}".also { fileInfo.text = it }
 
                     val fos = FileOutputStream(outputFile)
                     fos.write(bytesHistory)
@@ -170,28 +158,25 @@ class MainActivity : AppCompatActivity() {
 
                 imageReaderSurface = imageReader.surface
 
-                try {
-                    val requestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                    requestBuilder.addTarget(textureSurface!!)
-                    val request = requestBuilder.build()
+                val requestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                requestBuilder.addTarget(textureSurface)
+                val request = requestBuilder.build()
 
-                    val camCaptureSessionStateCallback = object :
-                        CameraCaptureSession.StateCallback() {
-                        override fun onConfigured(session: CameraCaptureSession) {
-                            cameraCaptureSession = session
-                            try {
-                                session.setRepeatingRequest(request, null, null)
-                            } catch (e : CameraAccessException) {
-                                e.printStackTrace()
-                            }
+                val camCaptureSessionStateCallback = object :
+                    CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(session: CameraCaptureSession) {
+                        cameraCaptureSession = session
+                        try {
+                            session.setRepeatingRequest(request, null, null)
+                        } catch (e : CameraAccessException) {
+                            e.printStackTrace()
                         }
-                        override fun onConfigureFailed(session: CameraCaptureSession) {}
                     }
-
-                    camera.createCaptureSession(listOf(textureSurface, imageReaderSurface), camCaptureSessionStateCallback, null)
-                } catch (e : CameraAccessException) {
-                    e.printStackTrace()
+                    override fun onConfigureFailed(session: CameraCaptureSession) {}
                 }
+
+                camera.createCaptureSession(listOf(textureSurface, imageReaderSurface), camCaptureSessionStateCallback, null)
+
 
                 btnShutter.setOnClickListener{
                     lateinit var requestBuilderImageReader : CaptureRequest.Builder
@@ -205,7 +190,7 @@ class MainActivity : AppCompatActivity() {
                     requestBuilderImageReader.addTarget(imageReaderSurface)
 
                     try {
-                        cameraCaptureSession!!.capture(requestBuilderImageReader.build(), null, null)
+                        cameraCaptureSession.capture(requestBuilderImageReader.build(), null, null)
                     } catch (e : CameraAccessException) {
                         e.printStackTrace()
                     }
@@ -243,38 +228,10 @@ class MainActivity : AppCompatActivity() {
         cameraManager.openCamera(cameraManager.cameraIdList[cameraId], camStateCallback, null)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun prepareVideoRecorder() : Boolean {
-        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-        if (camera.id.toInt() == 0)
-            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH))
-        else
-            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_LOW))
-        mediaRecorder.setPreviewDisplay(textureSurface)
-        outputFile = createOutputFile(MEDIA_TYPE_VIDEO)
-        mediaRecorder.setOutputFile(outputFile)
-
-        mediaRecorder.setOrientationHint(
-            when(windowManager.defaultDisplay.rotation) {
-                Surface.ROTATION_0 -> 0
-                Surface.ROTATION_90 -> 90
-                Surface.ROTATION_180 -> 180
-                Surface.ROTATION_270 -> 270
-                else -> 0
-            })
-        try {
-            mediaRecorder.prepare()
-        } catch (e: IllegalStateException) {
-            mediaRecorder.reset()
-            mediaRecorder.release()
-            return false
-        } catch (e: IOException) {
-            mediaRecorder.reset()
-            mediaRecorder.release()
-            return false
-        }
-        return true
+    private fun closeCamera() {
+        camera.close()
+        imageReader.close()
+        cameraCaptureSession.close()
     }
 
     private fun createOutputFile(type: Int): File {
@@ -282,7 +239,7 @@ class MainActivity : AppCompatActivity() {
 
         val fileName: String =
             if (fileEdit.text.isNotEmpty()) fileEdit.text.toString()
-            else SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA).format(Date())
+            else SimpleDateFormat("yyyy_MM_dd_HH_mm_ss", Locale.CHINA).format(Date())
 
         return when (type) {
             MEDIA_TYPE_IMAGE -> File(mediaStorageDir!!.path + File.separator + fileName + ".jpg")
@@ -293,12 +250,21 @@ class MainActivity : AppCompatActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun startRecording() {
-        cameraCaptureSession?.close()
-        prepareVideoRecorder()
+        cameraCaptureSession.close()
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+        if (camera.id.toInt() == 0)
+            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH))
+        else
+            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_LOW))
+        mediaRecorder.setPreviewDisplay(textureSurface)
+        outputFile = createOutputFile(MEDIA_TYPE_VIDEO)
+        mediaRecorder.setOutputFile(outputFile)
+        mediaRecorder.prepare()
 
         val previewBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
 
-        previewBuilder.addTarget(textureSurface!!)
+        previewBuilder.addTarget(textureSurface)
 
         val recorderSurface = mediaRecorder.surface
         previewBuilder.addTarget(recorderSurface)
@@ -308,7 +274,7 @@ class MainActivity : AppCompatActivity() {
                 cameraCaptureSession = session
                 try {
                     previewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                    cameraCaptureSession!!.setRepeatingRequest(previewBuilder.build(), null, null)
+                    cameraCaptureSession.setRepeatingRequest(previewBuilder.build(), null, null)
                 } catch (e : CameraAccessException) {
                     e.printStackTrace()
                 }
@@ -321,18 +287,16 @@ class MainActivity : AppCompatActivity() {
         }, null)
 
     }
+
     private fun stopRecording() {
         mediaRecorder.stop()
         mediaRecorder.reset()
-        startCamera()
+        openCamera()
     }
 
     override fun onPause() {
-        cameraCaptureSession?.close()
-        camera.close()
-        imageReader.close()
-
         super.onPause()
+        closeCamera()
     }
 
     companion object {

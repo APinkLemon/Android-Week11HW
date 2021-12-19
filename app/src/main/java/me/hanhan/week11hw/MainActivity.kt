@@ -29,36 +29,28 @@ import androidx.core.graphics.scale
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.lang.Exception
 import java.lang.RuntimeException
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
-    companion object {
-        const val REQUEST_PERMISSION = 1
 
-        const val MEDIA_TYPE_IMAGE = 2
-        const val MEDIA_TYPE_VIDEO = 3
-    }
-
-    private val lockPermissionRequest = Object()
-
-    private lateinit var editTextFileName : EditText
+    private lateinit var fileEdit : EditText
     private lateinit var textureView : TextureView
-    private lateinit var textViewInfo : TextView
-    private lateinit var imgBtnChangeCam : ImageButton
-    private lateinit var imgBtnShutter : ImageButton
-    private lateinit var imgViewLast : ImageView
+    private lateinit var fileInfo : TextView
+    private lateinit var btnReverse : ImageButton
+    private lateinit var btnShutter : ImageButton
+    private lateinit var lastImageView : ImageView
+
     private lateinit var bytesHistory : ByteArray
     private lateinit var bitmapHistory : Bitmap
 
-    private lateinit var cameraManager : CameraManager
     private lateinit var camera : CameraDevice
-    private var cameraCaptureSession : CameraCaptureSession? = null
-    private var textureSurface : Surface? = null
-
     private lateinit var imageReader : ImageReader
+    private lateinit var cameraManager : CameraManager
+    private lateinit var cameraCaptureSession : CameraCaptureSession
+
+    private lateinit var textureSurface : Surface
     private lateinit var imageReaderSurface : Surface
 
     private val mediaRecorder = MediaRecorder()
@@ -74,14 +66,24 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        checkPermission()
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED ||
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_DENIED ||
+            ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(android.Manifest.permission.CAMERA,
+                        android.Manifest.permission.RECORD_AUDIO,
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                        REQUEST_PERMISSION
+            )
+        }
 
-        editTextFileName = findViewById(R.id.file_edit)
+        fileEdit = findViewById(R.id.file_edit)
         textureView = findViewById(R.id.texture_view)
-        textViewInfo = findViewById(R.id.file_info)
-        imgBtnChangeCam = findViewById(R.id.btn_reverse)
-        imgBtnShutter = findViewById(R.id.btn_shutter)
-        imgViewLast = findViewById(R.id.last_img_view)
+        fileInfo = findViewById(R.id.file_info)
+        btnReverse = findViewById(R.id.btn_reverse)
+        btnShutter = findViewById(R.id.btn_shutter)
+        lastImageView = findViewById(R.id.last_img_view)
 
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
@@ -110,7 +112,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        imgBtnChangeCam.setOnClickListener {
+        btnReverse.setOnClickListener {
             cameraCaptureSession?.close()
             camera.close()
             imageReader.close()
@@ -132,44 +134,38 @@ class MainActivity : AppCompatActivity() {
                 val sizes = streamConfigurationMap!!.getOutputSizes(ImageFormat.JPEG)
                 Log.d("startCamera()", "${sizes.size}, [0]: ${sizes[0].width}, ${sizes[0].height}")
                 imageReader = ImageReader.newInstance(sizes[0].width, sizes[0].height, ImageFormat.JPEG, 2)
-                imageReader.setOnImageAvailableListener(object : ImageReader.OnImageAvailableListener {
-                    override fun onImageAvailable(reader: ImageReader?) {
-                        val image = reader!!.acquireLatestImage()
+                imageReader.setOnImageAvailableListener({ reader ->
+                    val image = reader!!.acquireLatestImage()
 
-                        val photoW = image.width
-                        val photoH = image.height
-                        val targetW = imgViewLast.width
-                        val targetH = imgViewLast.width
-                        var inSampleSize = 1
-                        while (photoW > targetW * inSampleSize || photoH > targetH * inSampleSize)
-                            inSampleSize *= 2
+                    val photoW = image.width
+                    val photoH = image.height
+                    val targetW = lastImageView.width
+                    val targetH = lastImageView.width
+                    var inSampleSize = 1
+                    while (photoW > targetW * inSampleSize || photoH > targetH * inSampleSize)
+                        inSampleSize *= 2
 
-                        Log.d("Input img size", "$photoW x $photoH")
-                        Log.d("Target img size", "$targetW x $targetH")
-                        Log.d("Output img size", "${photoW / (1 shl inSampleSize)} x ${targetH / (1 shl inSampleSize)}")
+                    Log.d("Input img size", "$photoW x $photoH")
+                    Log.d("Target img size", "$targetW x $targetH")
+                    Log.d("Output img size", "${photoW / (1 shl inSampleSize)} x ${targetH / (1 shl inSampleSize)}")
 
-                        val buffer = image.planes[0].buffer
-                        bytesHistory = ByteArray(buffer.remaining())
-                        buffer.get(bytesHistory)
-                        image.close()
+                    val buffer = image.planes[0].buffer
+                    bytesHistory = ByteArray(buffer.remaining())
+                    buffer.get(bytesHistory)
+                    image.close()
 
-                        outputFile = createOutputFile(MEDIA_TYPE_IMAGE)
-                        val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
-                        textViewInfo.text = "Last Shoot:\n"+
-                                "Image, $photoW × $photoH\n" +
-                                "${outputFile!!.name}\n" +
-                                "${currentTime}\n"
+                    outputFile = createOutputFile(MEDIA_TYPE_IMAGE)
+                    val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
+                    "Last Shoot:\nImage, $photoW × $photoH\n${outputFile!!.name}\n${currentTime}\n".also { fileInfo.text = it }
 
-                        val fos = FileOutputStream(outputFile)
-                        fos.write(bytesHistory)
-                        fos.close()
+                    val fos = FileOutputStream(outputFile)
+                    fos.write(bytesHistory)
+                    fos.close()
 
-                        val bmOptions = BitmapFactory.Options()
-                        bmOptions.inSampleSize = inSampleSize
-                        bitmapHistory = BitmapFactory.decodeByteArray(bytesHistory, 0, bytesHistory.size, bmOptions)
-                        imgViewLast.setImageBitmap(bitmapHistory)
-
-                    }
+                    val bmOptions = BitmapFactory.Options()
+                    bmOptions.inSampleSize = inSampleSize
+                    bitmapHistory = BitmapFactory.decodeByteArray(bytesHistory, 0, bytesHistory.size, bmOptions)
+                    lastImageView.setImageBitmap(bitmapHistory)
                 }, null)
 
                 imageReaderSurface = imageReader.surface
@@ -197,7 +193,7 @@ class MainActivity : AppCompatActivity() {
                     e.printStackTrace()
                 }
 
-                imgBtnShutter.setOnClickListener{
+                btnShutter.setOnClickListener{
                     lateinit var requestBuilderImageReader : CaptureRequest.Builder
                     try {
                         requestBuilderImageReader = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
@@ -215,36 +211,34 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                imgBtnShutter.setOnLongClickListener{
+                btnShutter.setOnLongClickListener{
                     isRecording = true
                     startRecording()
                     true
                 }
 
-                imgBtnShutter.setOnTouchListener { _, event ->
+                btnShutter.setOnTouchListener { _, event ->
                     if (event.action == MotionEvent.ACTION_UP && isRecording) {
                         isRecording = false
                         stopRecording()
-                        val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
                         val mediaMetadataRetriever = MediaMetadataRetriever()
                         mediaMetadataRetriever.setDataSource(outputFile!!.path)
+                        val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
                         val duration = mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toInt() / 1000.toDouble()
-                        textViewInfo.text = "Last Shoot:\n"+
-                                "Video, ${textureView.width} × ${textureView.height}, $duration s\n" +
-                                "${outputFile!!.name}\n" +
-                                "$currentTime\n"
-                        bitmapHistory = ThumbnailUtils.createVideoThumbnail(outputFile!!.path, MediaStore.Video.Thumbnails.MICRO_KIND)!!.scale(imgViewLast.width, imgViewLast.height)
-                        imgViewLast.setImageBitmap(bitmapHistory)
+                        ("Last Shoot:\n" + "Video, ${textureView.width} × ${textureView.height}, $duration s\n" + "${outputFile!!.name}\n" + "$currentTime").also { fileInfo.text = it }
+                        bitmapHistory = ThumbnailUtils.createVideoThumbnail(outputFile!!.path, MediaStore.Video.Thumbnails.MICRO_KIND)!!.scale(lastImageView.width, lastImageView.height)
+                        lastImageView.setImageBitmap(bitmapHistory)
                         return@setOnTouchListener true
                     }
                     return@setOnTouchListener false
                 }
             }
-            override fun onDisconnected(camera: CameraDevice) {}
-            override fun onError(camera: CameraDevice, error: Int) {}
-        }
 
-        checkPermission()
+            override fun onDisconnected(camera: CameraDevice) {}
+
+            override fun onError(camera: CameraDevice, error: Int) {}
+
+        }
 
         cameraManager.openCamera(cameraManager.cameraIdList[cameraId], camStateCallback, null)
     }
@@ -283,61 +277,49 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun createOutputFile(type : Int) : File {
+    private fun createOutputFile(type: Int): File {
         val mediaStorageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-        if (!mediaStorageDir!!.exists()) {
-            if (!mediaStorageDir.mkdirs()) {
-                throw RuntimeException("mediaStorageDir.mkdirs() failed")
-            }
-        }
-        val fileName : String =
-            if (editTextFileName.text.isNotEmpty()) editTextFileName.text.toString()
+
+        val fileName: String =
+            if (fileEdit.text.isNotEmpty()) fileEdit.text.toString()
             else SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA).format(Date())
 
-        val mediaFile = when (type) {
-            MEDIA_TYPE_IMAGE -> File(mediaStorageDir.path + File.separator + fileName + ".jpg")
-            MEDIA_TYPE_VIDEO -> File(mediaStorageDir.path + File.separator + fileName + ".mp4")
+        return when (type) {
+            MEDIA_TYPE_IMAGE -> File(mediaStorageDir!!.path + File.separator + fileName + ".jpg")
+            MEDIA_TYPE_VIDEO -> File(mediaStorageDir!!.path + File.separator + fileName + ".mp4")
             else -> throw RuntimeException("Invalid mediaFile type: $type")
         }
-
-        return mediaFile
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun startRecording() {
-        try {
-            cameraCaptureSession?.close()
-            prepareVideoRecorder()
+        cameraCaptureSession?.close()
+        prepareVideoRecorder()
 
-//            val texture = textureView.surfaceTexture
-//            texture!!.setDefaultBufferSize(textureView.width, textureView.height)
-            val previewBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+        val previewBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
 
-            previewBuilder.addTarget(textureSurface!!)
+        previewBuilder.addTarget(textureSurface!!)
 
-            val recorderSurface = mediaRecorder.surface
-            previewBuilder.addTarget(recorderSurface)
+        val recorderSurface = mediaRecorder.surface
+        previewBuilder.addTarget(recorderSurface)
 
-            camera.createCaptureSession(listOf(textureSurface, recorderSurface), object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(session: CameraCaptureSession) {
-                    cameraCaptureSession = session
-                    try {
-                        previewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                        cameraCaptureSession!!.setRepeatingRequest(previewBuilder.build(), null, null)
-                    } catch (e : CameraAccessException) {
-                        e.printStackTrace()
-                    }
-                    runOnUiThread{
-                        mediaRecorder.start()
-                    }
+        camera.createCaptureSession(listOf(textureSurface, recorderSurface), object : CameraCaptureSession.StateCallback() {
+            override fun onConfigured(session: CameraCaptureSession) {
+                cameraCaptureSession = session
+                try {
+                    previewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
+                    cameraCaptureSession!!.setRepeatingRequest(previewBuilder.build(), null, null)
+                } catch (e : CameraAccessException) {
+                    e.printStackTrace()
                 }
-                override fun onConfigureFailed(session: CameraCaptureSession) {}
+                runOnUiThread{
+                    mediaRecorder.start()
+                }
+            }
+            override fun onConfigureFailed(session: CameraCaptureSession) {}
 
-            }, null)
+        }, null)
 
-        } catch (e : Exception) {
-            e.printStackTrace()
-        }
     }
     private fun stopRecording() {
         mediaRecorder.stop()
@@ -353,33 +335,10 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
     }
 
-    override fun onResume() {
-        super.onResume()
+    companion object {
+        const val REQUEST_PERMISSION = 1
 
-        if (textureSurface != null)
-            startCamera()
-    }
-
-    private fun checkPermission() {
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED ||
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_DENIED ||
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                REQUEST_PERMISSION
-            )
-            lockPermissionRequest.wait()
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_PERMISSION && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-            lockPermissionRequest.notifyAll()
+        const val MEDIA_TYPE_IMAGE = 2
+        const val MEDIA_TYPE_VIDEO = 3
     }
 }

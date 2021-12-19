@@ -41,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         const val MEDIA_TYPE_IMAGE = 2
         const val MEDIA_TYPE_VIDEO = 3
     }
+
     private val lockPermissionRequest = Object()
 
     private lateinit var editTextFileName : EditText
@@ -121,16 +122,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCamera() {
         val camStateCallback = object : CameraDevice.StateCallback() {
-            @SuppressLint("ClickableViewAccessibility")
             @RequiresApi(Build.VERSION_CODES.O)
+            @SuppressLint("ClickableViewAccessibility")
             override fun onOpened(camera: CameraDevice) {
                 this@MainActivity.camera = camera
-
-                val list = cameraManager.cameraIdList
-                for (cam in list) {
-                    val cameraCharacteristics = cameraManager.getCameraCharacteristics(cam)
-                    Log.d("cam", "$cam : ${cameraCharacteristics.get(CameraCharacteristics.LENS_FACING)}")
-                }
 
                 val cameraCharacteristics = cameraManager.getCameraCharacteristics(camera.id)
                 val streamConfigurationMap = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)

@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/black"
     tools:context=".MainActivity">
 
 
@@ -11,8 +12,7 @@
         android:id="@+id/file_edit"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:layout_marginBottom="5dp"
+        android:layout_marginTop="20dp"
         android:layout_marginLeft="20dp"
         android:layout_marginRight="20dp"
         android:background="@color/yellow"
@@ -24,7 +24,8 @@
     <TextureView
         android:id="@+id/texture_view"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="400dp"
+        android:layout_marginTop="20dp"
         app:layout_constraintTop_toBottomOf="@+id/file_edit"
         />
 
@@ -34,17 +35,18 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginTop="5dp"
-        android:layout_marginBottom="5dp"
+        android:layout_marginTop="20dp"
         android:textColor="@color/white"
         android:gravity="center"
-        android:text="S\nS\nS\nS\n"
+        android:text="S\nS\nS\nS"
+        android:background="@color/teal_200"
         app:layout_constraintTop_toBottomOf="@+id/texture_view"
         />
 
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
         app:layout_constraintTop_toBottomOf="@+id/file_info"
         android:orientation="horizontal">
 
@@ -61,8 +63,8 @@
 
         <ImageButton
             android:id="@+id/btn_shutter"
-            android:layout_width="75dp"
-            android:layout_height="75dp"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
             android:layout_centerInParent="true"
             android:background="@null"
             android:scaleType="centerInside"

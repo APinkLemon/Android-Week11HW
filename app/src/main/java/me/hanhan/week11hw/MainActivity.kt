@@ -66,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        Log.d("Permission", "This is ppppp.")
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_DENIED ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_DENIED ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_DENIED) {
@@ -111,6 +112,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun openCamera() {
         val camStateCallback = object : CameraDevice.StateCallback() {
+
             @RequiresApi(Build.VERSION_CODES.O)
             @SuppressLint("ClickableViewAccessibility")
             override fun onOpened(camera: CameraDevice) {
@@ -127,14 +129,12 @@ class MainActivity : AppCompatActivity() {
                     val photoW = image.width
                     val photoH = image.height
                     val targetW = lastImageView.width
-                    val targetH = lastImageView.width
+                    val targetH = lastImageView.height
                     var inSampleSize = 1
                     while (photoW > targetW * inSampleSize || photoH > targetH * inSampleSize)
                         inSampleSize *= 2
 
-                    Log.d("Input img size", "$photoW x $photoH")
-                    Log.d("Target img size", "$targetW x $targetH")
-                    Log.d("Output img size", "${photoW / (1 shl inSampleSize)} x ${targetH / (1 shl inSampleSize)}")
+                    Log.d("IMAGE", inSampleSize.toString())
 
                     val buffer = image.planes[0].buffer
                     bytesHistory = ByteArray(buffer.remaining())
@@ -187,12 +187,7 @@ class MainActivity : AppCompatActivity() {
                     requestBuilderImageReader.set(CaptureRequest.JPEG_ORIENTATION, 90)
                     requestBuilderImageReader.set(CaptureRequest.CONTROL_AF_TRIGGER, CameraMetadata.CONTROL_AF_TRIGGER_START)
                     requestBuilderImageReader.addTarget(imageReaderSurface)
-
-                    try {
-                        cameraCaptureSession.capture(requestBuilderImageReader.build(), null, null)
-                    } catch (e : CameraAccessException) {
-                        e.printStackTrace()
-                    }
+                    cameraCaptureSession.capture(requestBuilderImageReader.build(), null, null)
                 }
 
                 btnShutter.setOnLongClickListener{
@@ -205,13 +200,6 @@ class MainActivity : AppCompatActivity() {
                     if (event.action == MotionEvent.ACTION_UP && isRecording) {
                         isRecording = false
                         stopRecording()
-                        val mediaMetadataRetriever = MediaMetadataRetriever()
-                        mediaMetadataRetriever.setDataSource(outputFile!!.path)
-                        val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
-                        val duration = mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toInt() / 1000.toDouble()
-                        ("Last Shoot:\n" + "Video, ${textureView.width} × ${textureView.height}, $duration s\n" + "${outputFile!!.name}\n" + "$currentTime").also { fileInfo.text = it }
-                        bitmapHistory = ThumbnailUtils.createVideoThumbnail(outputFile!!.path, MediaStore.Video.Thumbnails.MICRO_KIND)!!.scale(lastImageView.width, lastImageView.height)
-                        lastImageView.setImageBitmap(bitmapHistory)
                         return@setOnTouchListener true
                     }
                     return@setOnTouchListener false
@@ -252,17 +240,14 @@ class MainActivity : AppCompatActivity() {
         cameraCaptureSession.close()
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-        if (camera.id.toInt() == 0)
-            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH))
-        else
-            mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_LOW))
+        mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH))
         mediaRecorder.setPreviewDisplay(textureSurface)
+
         outputFile = createOutputFile(MEDIA_TYPE_VIDEO)
         mediaRecorder.setOutputFile(outputFile)
         mediaRecorder.prepare()
 
         val previewBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-
         previewBuilder.addTarget(textureSurface)
 
         val recorderSurface = mediaRecorder.surface
@@ -271,26 +256,25 @@ class MainActivity : AppCompatActivity() {
         camera.createCaptureSession(listOf(textureSurface, recorderSurface), object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
                 cameraCaptureSession = session
-                try {
-                    previewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
-                    cameraCaptureSession.setRepeatingRequest(previewBuilder.build(), null, null)
-                } catch (e : CameraAccessException) {
-                    e.printStackTrace()
-                }
-                runOnUiThread{
-                    mediaRecorder.start()
-                }
+                previewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
+                cameraCaptureSession.setRepeatingRequest(previewBuilder.build(), null, null)
+                mediaRecorder.start()
             }
             override fun onConfigureFailed(session: CameraCaptureSession) {}
-
         }, null)
-
     }
 
     private fun stopRecording() {
         mediaRecorder.stop()
         mediaRecorder.reset()
         openCamera()
+        val mediaMetadataRetriever = MediaMetadataRetriever()
+        mediaMetadataRetriever.setDataSource(outputFile!!.path)
+        val currentTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
+        val duration = mediaMetadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toInt() / 1000.toDouble()
+        ("Last Shoot:\n" + "Video, ${textureView.width} × ${textureView.height}, $duration s\n" + "${outputFile!!.name}\n" + currentTime).also { fileInfo.text = it }
+        bitmapHistory = ThumbnailUtils.createVideoThumbnail(outputFile!!.path, MediaStore.Video.Thumbnails.MICRO_KIND)!!.scale(lastImageView.width, lastImageView.height)
+        lastImageView.setImageBitmap(bitmapHistory)
     }
 
     override fun onPause() {

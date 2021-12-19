@@ -16,7 +16,7 @@
         android:layout_marginLeft="20dp"
         android:layout_marginRight="20dp"
         android:background="@color/yellow"
-        android:hint="Please input the output file name."
+        android:hint="Output Filename. (Default Is Time Format)"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         />
@@ -38,7 +38,7 @@
         android:layout_marginTop="20dp"
         android:textColor="@color/white"
         android:gravity="center"
-        android:text="S\nS\nS\nS"
+        android:text="Last Shoot:\nImage Size\nImage Name\nTime"
         android:background="@color/teal_200"
         app:layout_constraintTop_toBottomOf="@+id/texture_view"
         />
@@ -78,7 +78,7 @@
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:background="@null"
-            android:src="@drawable/ic_launcher_background" />
+            android:src="@drawable/niko" />
     </RelativeLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
